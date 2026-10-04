@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Service blueprint, SLOs and cloud cost envelope</title>
+<style>
+:root{--bg:#eef2f4;--fg:#18252d;--mut:#51636e;--line:#c5d1d8;--card:#fff;--acc:#0f6b6b;--warn:#b25e00;--wash:#e1eaee;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#11191e;--fg:#e4ecf0;--mut:#9bb0ba;--line:#2c3c45;--card:#18242b;--acc:#4fc0b8;--warn:#f0a050;--wash:#1f2f37}}
+:root[data-theme="dark"]{--bg:#11191e;--fg:#e4ecf0;--mut:#9bb0ba;--line:#2c3c45;--card:#18242b;--acc:#4fc0b8;--warn:#f0a050;--wash:#1f2f37}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:920px;margin:0 auto;padding:32px 18px 64px}
+h1,h2{font-family:Georgia,"Times New Roman",serif;line-height:1.2;font-weight:600}
+h1{font-size:2.1rem;margin:0 0 8px}
+h2{font-size:1.45rem;margin:48px 0 8px;padding-top:16px;border-top:2px solid var(--acc)}
+h3{font-size:1rem;margin:22px 0 4px}
+p{max-width:70ch;margin:8px 0}
+.lede{color:var(--mut);font-size:1.05rem}
+.scroll{overflow-x:auto;margin:12px 0;background:var(--card);border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:.92rem}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--wash);font-weight:600}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tr.tot td{font-weight:600;background:var(--wash)}
+svg{width:100%;height:auto;display:block}
+.note{border-left:3px solid var(--warn);padding:2px 12px;color:var(--mut);margin:12px 0}
+code{background:var(--wash);padding:1px 5px;border-radius:3px;font-size:.9em}
+</style>
+</head>
+<body>
+<main>
+<h1>Service blueprint, SLOs and cloud cost envelope</h1>
+<p class="lede">An operational contract for a small two-tier web service (stateless app tier plus one relational database), written before any infrastructure is chosen. Three tiers come from your scenario sheet: Lean (₹2,500/month, 500 users), Balanced (₹8,000, 5,000 users) and Resilient (₹25,000, 25,000 users).</p>
+
+<h2>1. Blueprint: request, dependency, deployment, data and failure paths</h2>
+<div class="scroll"><svg viewBox="0 0 880 330" role="img" aria-label="Two-tier service blueprint with request, deployment, data and failure paths" font-family="system-ui,sans-serif" font-size="13">
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--fg)"/></marker>
+<marker id="w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--warn)"/></marker>
+</defs>
+<g fill="var(--card)" stroke="var(--fg)" stroke-width="1.4">
+<rect x="10" y="40" width="100" height="50" rx="6"/><rect x="160" y="40" width="130" height="50" rx="6"/>
+<rect x="340" y="40" width="150" height="50" rx="6"/><rect x="540" y="40" width="140" height="50" rx="6"/>
+<rect x="540" y="150" width="140" height="50" rx="6"/><rect x="730" y="40" width="140" height="50" rx="6"/>
+<rect x="340" y="150" width="150" height="50" rx="6"/><rect x="160" y="150" width="130" height="50" rx="6"/>
+<rect x="340" y="250" width="150" height="50" rx="6"/><rect x="730" y="150" width="140" height="50" rx="6"/>
+</g>
+<g fill="var(--fg)" text-anchor="middle">
+<text x="60" y="70">Client</text><text x="225" y="70">DNS + CDN / WAF</text><text x="415" y="70">Load balancer</text>
+<text x="610" y="70">App tier (2+ nodes)</text><text x="800" y="70">Database (primary)</text>
+<text x="610" y="180">Secrets store</text><text x="415" y="180">CI/CD pipeline</text><text x="225" y="180">Image registry</text>
+<text x="415" y="280">Logs, metrics, alerts</text><text x="800" y="180">Backups + PITR</text>
+</g>
+<g stroke="var(--fg)" stroke-width="1.6" fill="none" marker-end="url(#a)">
+<path d="M110 65H160"/><path d="M290 65H340"/><path d="M490 65H540"/><path d="M680 65H730"/>
+<path d="M610 150V90"/><path d="M340 175H290"/><path d="M490 175H540" stroke-dasharray="5 4"/>
+<path d="M800 90V150"/><path d="M610 90 L430 250" stroke-dasharray="2 4"/>
+</g>
+<g stroke="var(--warn)" stroke-width="1.6" fill="none" stroke-dasharray="6 4" marker-end="url(#w)">
+<path d="M415 40 C415 10 610 10 610 40"/><path d="M730 75 C700 120 700 120 680 80"/>
+</g>
+<g fill="var(--mut)" font-size="11.5">
+<text x="118" y="58">HTTPS</text><text x="298" y="58">origin</text><text x="496" y="58">health-checked</text>
+<text x="688" y="58">SQL, TLS</text><text x="620" y="125">fetch at start</text>
+<text x="296" y="168">pull image</text><text x="496" y="168">deploy</text><text x="808" y="125">snapshots</text>
+<text x="450" y="228">telemetry from every box</text>
+</g>
+<g fill="var(--warn)" font-size="11.5"><text x="430" y="22">F1: node fails, LB drains it</text><text x="598" y="112">F2: DB down, serve read-only</text></g>
+</svg></div>
+<h3>Paths in words</h3>
+<p><b>Request:</b> client, CDN/WAF, load balancer, app node, database, and back. Static assets stop at the CDN. <b>Dependencies:</b> the app hard-depends on the database and the secrets store at start-up only; the CDN, logging and the payment/email APIs (if any) are soft dependencies behind timeouts and circuit breakers. <b>Deployment:</b> pipeline builds an image, pushes to the registry, then rolls one node at a time behind health checks; schema migrations run first and stay backward compatible for one release. <b>Data:</b> one primary database, nightly full backup plus point-in-time recovery on Balanced and Resilient.</p>
+<p><b>Failure paths:</b> F1, an app node dies, so the load balancer ejects it within 2 failed checks. F2, the database is unavailable, so the app returns a clear 503 for writes and cached reads where possible. F3, a bad deploy, so the pipeline halts when error rate exceeds the paging threshold during rollout and rolls back to the previous image. F4, a region or zone is lost, so recovery follows the RTO and RPO in section 2.</p>
+
+<h2>2. SLIs, SLOs, error budget and paging</h2>
+<h3>Indicators</h3>
+<p><b>Availability SLI:</b> proportion of requests at the load balancer that return a non-5xx response (4xx counts as good; health checks and synthetic probes excluded). <b>Latency SLI:</b> proportion of successful requests completed within the tier's p95 threshold, measured at the load balancer. Both over a rolling 30 days (43,200 minutes).</p>
+<div class="scroll"><table>
+<tr><th>Tier</th><th class="n">Availability SLO</th><th class="n">Error budget / 30 days</th><th class="n">Latency p95</th><th class="n">RPO</th><th class="n">RTO</th></tr>
+<tr><td>Lean</td><td class="n">99.0%</td><td class="n">432 min (7.2 h)</td><td class="n">800 ms</td><td class="n">24 h</td><td class="n">4 h</td></tr>
+<tr><td>Balanced</td><td class="n">99.5%</td><td class="n">216 min (3.6 h)</td><td class="n">500 ms</td><td class="n">60 min</td><td class="n">60 min</td></tr>
+<tr><td>Resilient</td><td class="n">99.9%</td><td class="n">43 min</td><td class="n">300 ms</td><td class="n">15 min</td><td class="n">30 min</td></tr>
+</table></div>
+<p>The latency SLO means 95% of requests finish under the threshold. The latency budget is the other 5%.</p>
+<h3>Paging thresholds (multi-window burn rate)</h3>
+<p>Burn rate 1 means the budget lasts exactly 30 days. Page on fast burns, ticket on slow ones, so people are woken only when the budget is genuinely at risk.</p>
+<div class="scroll"><table>
+<tr><th>Alert</th><th>Window</th><th class="n">Burn rate</th><th class="n">Lean error rate</th><th class="n">Balanced</th><th class="n">Resilient</th><th>Action</th></tr>
+<tr><td>Fast burn</td><td>1 h (5 min confirm)</td><td class="n">14.4×</td><td class="n">14.4%</td><td class="n">7.2%</td><td class="n">1.44%</td><td>Page now; ~2% of budget gone</td></tr>
+<tr><td>Slow burn</td><td>6 h (30 min confirm)</td><td class="n">6×</td><td class="n">6%</td><td class="n">3%</td><td class="n">0.6%</td><td>Page (business hours on Lean)</td></tr>
+<tr><td>Trend</td><td>3 days</td><td class="n">1×</td><td class="n">1%</td><td class="n">0.5%</td><td class="n">0.1%</td><td>Ticket, plan fix</td></tr>
+</table></div>
+<p><b>Latency paging:</b> page when more than 20% of requests exceed the p95 threshold for 15 minutes; ticket at 10% for 1 hour. <b>Budget policy:</b> above 50% of budget spent, only reliability work ships; at 100%, feature releases freeze until the window recovers.</p>
+
+<h2>3. Monthly cost envelope (₹)</h2>
+<p>Each traffic level matches one scenario from your sheet. Figures are planning estimates built from assumed usage, not provider quotes; replace them with calculator output once a provider is chosen.</p>
+<div class="scroll"><table>
+<tr><th>Line item</th><th class="n">Lean (500 users)</th><th class="n">Balanced (5,000)</th><th class="n">Resilient (25,000)</th></tr>
+<tr><td>Compute (app tier, LB)</td><td class="n">900</td><td class="n">2,500</td><td class="n">7,000</td></tr>
+<tr><td>Database and storage</td><td class="n">600</td><td class="n">2,600</td><td class="n">8,500</td></tr>
+<tr><td>Data transfer and CDN</td><td class="n">150</td><td class="n">650</td><td class="n">2,200</td></tr>
+<tr><td>Logging and metrics</td><td class="n">250</td><td class="n">800</td><td class="n">2,300</td></tr>
+<tr><td>Backup and restore tests</td><td class="n">150</td><td class="n">450</td><td class="n">1,300</td></tr>
+<tr><td>Support plan and alerting</td><td class="n">200</td><td class="n">600</td><td class="n">1,700</td></tr>
+<tr class="tot"><td>Estimated total</td><td class="n">2,250</td><td class="n">7,600</td><td class="n">23,000</td></tr>
+<tr><td>Budget in sheet</td><td class="n">2,500</td><td class="n">8,000</td><td class="n">25,000</td></tr>
+<tr><td>Headroom</td><td class="n">10%</td><td class="n">5%</td><td class="n">8%</td></tr>
+<tr><td>Cost per user</td><td class="n">4.50</td><td class="n">1.52</td><td class="n">0.92</td></tr>
+</table></div>
+<p class="note">Balanced has the thinnest headroom. Log volume and egress are the usual overruns, so set a log retention of 14 days and a billing alert at 80% of budget on every tier.</p>
+<p>Assumptions: Lean runs one small app node plus a small managed database; Balanced runs two autoscaled nodes and a managed database with PITR; Resilient spans three zones with a multi-zone database and a cross-region backup copy. Prices exclude tax and one-off migration work.</p>
+
+<h2>4. Architecture decisions</h2>
+<div class="scroll"><table>
+<tr><th>Decision</th><th>Choice</th><th>Why, and what it costs</th></tr>
+<tr><td><b>ADR-1 Region</b></td><td>One Mumbai-class region for all tiers; Resilient adds a second Indian region for backup copies only.</td><td>Closest to Bengaluru users, so p95 targets are reachable, and data stays in India. A single region means a regional outage breaches the SLO on Lean and Balanced; accepted.</td></tr>
+<tr><td><b>ADR-2 Recovery objectives</b></td><td>Lean: RPO 24 h, RTO 4 h from nightly backup. Balanced: RPO/RTO 60 min with PITR and scripted rebuild. Resilient: RPO 15 min, RTO 30 min via multi-zone failover and tested restore.</td><td>Targets come from your sheet. A backup counts only after a quarterly restore drill meets the RTO. Resilient's 30-minute RTO covers zone loss, not region loss.</td></tr>
+<tr><td><b>ADR-3 Secrets</b></td><td>Managed secrets store; no secrets in images, repos or CI logs; app reads them at start-up via its role; 90-day rotation for database credentials.</td><td>Removes the most common leak path. Cost: a start-up dependency on the store, so cache secrets in memory and retry with backoff.</td></tr>
+<tr><td><b>ADR-4 Least privilege</b></td><td>Separate roles for app runtime, deploy pipeline, backup job and humans. App: read its own secrets, connect to its database, write logs. Pipeline: push images and update the service, nothing else. Humans: SSO with MFA, read-only by default, time-limited elevation.</td><td>Limits blast radius of a leaked key. Cost: more role setup and occasional access requests during incidents; mitigate with a documented break-glass role that alerts on use.</td></tr>
+<tr><td><b>ADR-5 Network</b></td><td>Database in a private subnet reachable only from the app tier; only the load balancer is public.</td><td>Shrinks attack surface; admin access goes through the audited role, not an open port.</td></tr>
+</table></div>
+
+<h2>Open questions</h2>
+<p>Which provider and managed database will you use, so costs can be replaced with real quotes? Is there a data-residency or compliance requirement beyond keeping data in India? Does the service call third-party APIs whose own availability limits what you can promise?</p>
+</main>
+</body>
+</html>
